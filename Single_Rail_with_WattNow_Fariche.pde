@@ -23,25 +23,27 @@ const char versionStr[] = "Pedal Power Utility Box ver. 2.1x . Single_Rail_with_
 #include "ht1632c.h"
 #include "font1.h"
 
-float wattAvg = 0;  // used for averaging wattage for wattnow sign
+#define DISPLAYRATE 2000 // how many milliseconds to show each text display before switching
+
+float wattAvg,wattAvgAdder = 0;  // used for averaging wattage for wattnow sign
 const int wattAvgCount = 7; // how many main loops to average. 7 to 2 in hopes of 
 int wattAvgIndex = 0;  // how many times we have counted wattage
 
-const int pwm = 0;
-const int onoff = 1;
+float wattHours = 0;  // how many watt-hours since bootup
+unsigned long lastWattHours = 0; // the last time we measured watt-hours
 
-const int numLevels = 6;
+#define pwm 0
+#define onoff 1
 
 // Arduino pin for each output level
-const int numPins = 6; // Number of active Arduino Pins for + rail team.
+const int numPins = 4; // Number of active Arduino Pins for + rail team.
 int pin[numPins] = {
-  6, 11, 5, 9, 3, 10}; 
-// above pinout is for Rock The Bike box. Use this for 4-row display: {3, 5, 6, 9};
+  3, 5, 6, 9}; 
 
+#define numLevels 5
 // voltages at which to turn on each level
-//float levelVolt[numLevels] = {21, 24.0, 27.0};
 float levelVolt[numLevels] = {
-  22.0, 23.0, 24.0, 25.0, 26.0, 27.0};
+  22.0, 23.5, 24.8, 26.6, 27.0};
 
 int levelMode=0; // 0 = off, 1 = blink, 2 = steady
 
@@ -49,7 +51,7 @@ int levelMode=0; // 0 = off, 1 = blink, 2 = steady
 // float levelVolt[numLevels] = {21, 24.0, 27.0};
 
 int levelType[numLevels] = {
-  pwm, pwm, pwm, pwm, pwm, pwm};
+  pwm, pwm, pwm, pwm, pwm};
 
 // type of each level (pwm or onoff)
 
@@ -97,20 +99,13 @@ int readCount = 0; // for determining how many sample cycle occur per display in
 
 // vars for current PWM duty cycle
 int pwmValue;
-//int pwmvalue24V;
 boolean updatePwm = false;
-
-////Kindermode variables
-//boolean twelveVoltPedalometerMode = false;
-//boolean twelveVoltProtectionMode = false;
-//const float maxVoltTwelveVoltPedalometerMode = 14.5;
 
 
 // timing variables for blink. Mark, there are too many of these. 
 int blinkState=0;
 int fastBlinkState=0;
 unsigned long time = 0;
-unsigned long currentTime = 0;
 unsigned long lastFastBlinkTime = 0;
 unsigned long lastBlinkTime = 0;
 unsigned long timeRead = 0;
@@ -215,10 +210,6 @@ void setup() {
       digitalWrite(pin[i],0);
   }
 
-  //init - Rail LED / pedalometer pins
-  pinMode(10,OUTPUT);
-  pinMode(11,OUTPUT);
-
   getVoltages();
 
 }
@@ -243,32 +234,31 @@ void loop() {
   //First deal with the blink  
 
   time = millis();
-  currentTime=millis();
-  if (((currentTime - lastBlinkTime) > 600) && blinkState==1){
+  if (((time - lastBlinkTime) > 600) && blinkState==1){
     //                  Serial.println("I just turned pwm to 0.");
     //     pwmValue=0;
     blinkState=0;
     //   analogWrite(pin[i], pwmValue);
-    lastBlinkTime=currentTime;
+    lastBlinkTime=time;
   } 
-  else if (((currentTime - lastBlinkTime) > 600) && blinkState==0){
+  else if (((time - lastBlinkTime) > 600) && blinkState==0){
     //   Serial.println("I just turned blinkstate to 1.");
     blinkState=1; 
-    lastBlinkTime=currentTime;
+    lastBlinkTime=time;
   }
 
 
-  if (((currentTime - lastFastBlinkTime) > 120) && fastBlinkState==1){
+  if (((time - lastFastBlinkTime) > 120) && fastBlinkState==1){
     //                  Serial.println("I just turned pwm to 0.");
     //     pwmValue=0;
     fastBlinkState=0;
     //   analogWrite(pin[i], pwmValue);
-    lastFastBlinkTime=currentTime;
+    lastFastBlinkTime=time;
   } 
-  else if (((currentTime - lastFastBlinkTime) > 120) && fastBlinkState==0){
+  else if (((time - lastFastBlinkTime) > 120) && fastBlinkState==0){
     //   Serial.println("I just turned blinkstate to 1.");
     fastBlinkState=1; 
-    lastFastBlinkTime=currentTime;
+    lastFastBlinkTime=time;
   }  
 
   //protect the ultracapacitors if needed
@@ -286,12 +276,11 @@ void loop() {
   //Set the desired lighting states. 
 
   senseLevel = -1;
-  if (voltage <=levelVolt[0]){
+  if (voltage <=levelVolt[0]){  // voltage is below minimum
     senseLevel=0;
-    //    Serial.println("Level Mode = 1");
-    desiredState[0]=1;
+    desiredState[0]=1; // set first lights to mode 1
   } 
-  else {
+  else {  // set lights programmatically with for() loop
 
     for(i = 0; i < numLevels; i++) {
 
@@ -313,13 +302,8 @@ void loop() {
   }
 
   // End setting desired states. 
-
-
-
   // Do the desired states. 
   // loop through each led and turn on/off or adjust PWM
-
-
 
   for(i = 0; i < numPins; i++) {
 
@@ -369,20 +353,16 @@ void loop() {
 
   char* label;
   char buf[]="    ";
-  if( time % 4000 > 2000 ) {  // display wattage
-    // only calculate wattage once per display update
-    if (displaymode != 1) wattage = voltage * Amps;
-    label = "WATT";
+  if( time % (DISPLAYRATE * 2) > DISPLAYRATE ) {  // display wattage
+    if (displaymode != 1) wattage = voltage * Amps;  // only calculate wattage once per display update
     displaymode = 1;
-
-    sprintf(buf, "%4d", (int) voltage);
+    label = "WATT";
+    sprintf(buf, "%4d", (int) wattage);
   } 
   else {  // display WATT HOURS
-    // only calculate wattage once per display update
 //    if (displaymode != 2) wattage = voltage * Amps + minusRailVoltage * Amps; //Assuming - rail amps = + rail amps. 
     label = "W*H ";
     displaymode = 2;
-
     sprintf(buf, "%4d", (int) (wattAvg / wattAvgCount));
   } 
 
