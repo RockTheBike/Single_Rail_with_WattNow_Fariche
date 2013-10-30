@@ -68,8 +68,9 @@ int levelType[numLevels] = {
 const int voltPin = A0; // Voltage Sensor Input
 const int ampsPin = A3; // AC power and all DC devices. 
 const int relayPin=2;
-const float voltcoeff = 13.25;  // larger numer interprets as lower voltage 
-const float ampcoeff = 7.4; //One direct calculation has this at 5.8. Tune. 
+#define VOLTCOEFF 13.2186  // 315 / 23.83v
+#define AMPCOEFF 7.4 // MEASURE AND CALIBRATE THIS
+#define AMPOFFSET 514 // when current sensor is at 0 amps this is the ADC value
 
 //MAXIMUM VOLTAGE TO GIVE LEDS
 //const float maxVoltLEDs = 24 -- always run LEDs in 24V series configuration.
@@ -223,15 +224,14 @@ void loop() {
 
   time = millis();
   getVoltages();
-  getCurrents();
 
   wattAvgAdder += voltage * amps;  // add instantaneous wattage to wattAvgAdder
   if (wattAvgIndex++ >= WATTAVGCOUNT) {
     wattAvg = wattAvgAdder / WATTAVGCOUNT; // set wattAvg to the average value
     wattAvgAdder = 0; // start adder over
     wattAvgIndex = 0; // start the averaging over
-    Serial.print("w"); // this character prepares the sign to recieve wattage number
-    Serial.println(wattAvg);  // print the averaged wattage
+//    Serial.print("w"); // this character prepares the sign to recieve wattage number
+//    Serial.println(wattAvg);  // print the averaged wattage
   }  // this is how we made wattAvg
 
   wattHours += wattAvg * ((time - lastWattHours)/3600000);  // milliseconds to hours conversion
@@ -417,59 +417,18 @@ void setpwmvalue()
   }
 }
 
-void getCurrents(){
-
-  //first two lines are for AC amps 
-  ampsRaw = analogRead(ampsPin);
-  amps = adc2amps(ampsRaw);  // constant multiplier needed
-}
-
 void getVoltages(){
 
-  adcvalue = analogRead(voltPin);
-  voltage = average(adc2volts(adcvalue), voltage); //Felt slow so I am putting in the line below with no averaging
+  voltage = average((analogRead(voltPin) / VOLTCOEFF), voltage); //Felt slow so I am putting in the line below with no averaging
 
+  amps = (analogRead(ampsPin) - AMPOFFSET) / AMPCOEFF;
 }
+
 float average(float val, float avg){
   if(avg == 0)
     avg = val;
   return (val + (avg * (AVG_CYCLES - 1))) / AVG_CYCLES;
 }
-
-static int volts2adc(float v){
-  /* voltage calculations
-   *
-   * Vout = Vin * R2/(R1+R2), where R1 = 100k, R2 = 10K
-   * 30V * 10k/110k = 2.72V // at ADC input, for a 55V max input range
-   *
-   * Val = Vout / 5V max * 1024 adc val max (2^10 = 1024 max vaue for a 10bit ADC)
-   * 2.727/5 * 1024 = 558.4896
-   */
-  //int led3volts0 = 559;
-
-  /* 24v
-   * 24v * 10k/110k = 2.181818181818182
-   * 2.1818/5 * 1024 = 446.836363636363636
-   */
-  //int led2volts4 = 447;
-
-  //adc = v * 10/110/5 * 1024 == v * 18.618181818181818;
-
-  return v * voltcoeff;
-}
-
-
-
-float adc2volts(float adc){
-  // v = adc * 110/10 * 5 / 1024 == adc * 0.0537109375;
-  return adc * (1 / voltcoeff); // 55 / 1024 = 0.0537109375;
-}
-
-float adc2amps(float adc){
-
-  return adc * (1 / ampcoeff); 
-}
-
 
 void printDisplay(){
   Serial.print(" volts: ");
