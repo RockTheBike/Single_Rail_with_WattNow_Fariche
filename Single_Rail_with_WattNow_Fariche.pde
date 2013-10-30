@@ -16,6 +16,8 @@
  * 2.1x -- modified for Fariche customer (no minusrail, single ampmeter/wattmeter) Arbduino board
  */
 
+#define BAUDRATE 57600
+
 const char versionStr[] = "Pedal Power Utility Box ver. 2.1x . Single_Rail_with_WattNow_Fariche.pde";
 
 #include <Wire.h>
@@ -33,7 +35,7 @@ static const byte ht1632_data = 13;  // Data pin (pin 7)
 #define DISPLAYRATE 2000 // how many milliseconds to show each text display before switching
 
 float wattAvg,wattAvgAdder = 0;  // used for averaging wattage for wattnow sign
-const int wattAvgCount = 7; // how many main loops to average. 7 to 2 in hopes of 
+#define WATTAVGCOUNT 10 // how many main loops to average wattAvgAdder into wattAvg
 int wattAvgIndex = 0;  // how many times we have counted wattage
 
 float wattHours = 0;  // how many watt-hours since bootup
@@ -94,12 +96,11 @@ float wattage;
 int state[numLevels];
 int desiredState[numPins];
 
-const int AVG_CYCLES = 7; // average measured voltage over this many samples
-const int DISPLAY_INTERVAL_MS = 500; // when auto-display is on, display every this many milli-seconds
+#define AVG_CYCLES 7 // average measured voltage over this many samples
+#define DISPLAY_INTERVAL_MS 500 // when auto-display is on, display every this many milli-seconds
 int displayCount = 0;  // counts how many display intervals have happened
-const int resetInterval = 120; // how many display intervals between display resets 
-int displaymode = 0; // stores what display mode we're on (JBL or WATT or what)
-const int VICTORYTIME=4000;
+#define resetInterval 120 // how many display intervals between display resets 
+int displaymode = 0; // stores what display mode we're on (W*H or WATT or whatever)
 
 int readCount = 0; // for determining how many sample cycle occur per display interval
 
@@ -191,7 +192,7 @@ char buffer[8][8];
 
 
 void setup() {
-  Serial.begin(1200);
+  Serial.begin(BAUDRATE);
   ht1632_initialize();
 
   // Initialize Software PWM
@@ -199,7 +200,6 @@ void setup() {
 
   Serial.println(versionStr);
 
-  pinMode(voltPin,INPUT);
   pinMode(relayPin, OUTPUT);
 
   // init LED pins
@@ -220,21 +220,24 @@ int senseLevel = -1;
 
 void loop() {
 
+  time = millis();
   getVoltages();
   getCurrents();
-  wattAvg += voltage * Amps;  // add total wattage to wattAvg
-  if (wattAvgIndex++ >= wattAvgCount) {
-    Serial.print("w"); // this character prepares the sign to recieve wattage number
-    Serial.println(wattAvg / wattAvgCount);  // print the wattage
-    wattAvg = 0; // start the averaging over
-    wattAvgIndex = 0; // start the averaging over
-  }
 
+  wattAvgAdder += voltage * Amps;  // add instantaneous wattage to wattAvgAdder
+  if (wattAvgIndex++ >= WATTAVGCOUNT) {
+    wattAvg = wattAvgAdder / WATTAVGCOUNT; // set wattAvg to the average value
+    wattAvgAdder = 0; // start adder over
+    wattAvgIndex = 0; // start the averaging over
+    Serial.print("w"); // this character prepares the sign to recieve wattage number
+    Serial.println(wattAvg);  // print the averaged wattage
+  }  // this is how we made wattAvg
+
+  updateDisplay();  // update the ht1632c display
   setpwmvalue();
   readCount++;
   //First deal with the blink  
 
-  time = millis();
   if (((time - lastBlinkTime) > 600) && blinkState==1){
     //                  Serial.println("I just turned pwm to 0.");
     //     pwmValue=0;
@@ -339,6 +342,11 @@ void loop() {
     } 
   } //end for
 
+  delay(100);
+}
+
+void updateDisplay() {
+  
   if(time - timeDisplay > DISPLAY_INTERVAL_MS){
     timeDisplay = time;
     displayCount += 1; //increment displayCount counter
@@ -364,7 +372,7 @@ void loop() {
 //    if (displaymode != 2) wattage = voltage * Amps + minusRailVoltage * Amps; //Assuming - rail amps = + rail amps. 
     label = "W*H ";
     displaymode = 2;
-    sprintf(buf, "%4d", (int) (wattAvg / wattAvgCount));
+    sprintf(buf, "%4d", (int) (wattAvg / WATTAVGCOUNT));
   } 
 
   /*  else {  // display system voltage
@@ -378,9 +386,6 @@ void loop() {
 
   //sprintf(buf, "%4.1f", voltage);
   ht1632_draw_strings( label, buf );
-
-  delay(200);
-
 
 }
 
