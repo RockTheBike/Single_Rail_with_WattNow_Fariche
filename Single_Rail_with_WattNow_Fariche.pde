@@ -66,7 +66,7 @@ int levelType[numLevels] = {
 
 // Arduino pins to be used as inputs to voltage sensor. This shows where to connect the wires! 
 const int voltPin = A0; // Voltage Sensor Input
-const int AmpsPin = A3; // AC power and all DC devices. 
+const int ampsPin = A3; // AC power and all DC devices. 
 const int relayPin=2;
 const float voltcoeff = 13.25;  // larger numer interprets as lower voltage 
 const float ampcoeff = 7.4; //One direct calculation has this at 5.8. Tune. 
@@ -87,8 +87,8 @@ int adcvalue = 0;
 float voltage = 0;
 
 //Current related variables
-float Amps=0;
-int AmpsRaw;
+float amps=0;
+int ampsRaw;
 
 float Watts;
 float wattage;
@@ -97,10 +97,11 @@ int state[numLevels];
 int desiredState[numPins];
 
 #define AVG_CYCLES 7 // average measured voltage over this many samples
-#define DISPLAY_INTERVAL_MS 500 // when auto-display is on, display every this many milli-seconds
+#define DISPLAY_INTERVAL_MS 1000 // when auto-display is on, display every this many milli-seconds
+#define RESETINTERVAL 60 // how many display intervals between display resets 
 int displayCount = 0;  // counts how many display intervals have happened
-#define resetInterval 120 // how many display intervals between display resets 
-int displaymode = 0; // stores what display mode we're on (W*H or WATT or whatever)
+int displaymode = 0; // stores what display mode we're on (W.H. or WATT or whatever)
+char buf[]="    "; // stores the number we're going to display
 
 int readCount = 0; // for determining how many sample cycle occur per display interval
 
@@ -224,7 +225,7 @@ void loop() {
   getVoltages();
   getCurrents();
 
-  wattAvgAdder += voltage * Amps;  // add instantaneous wattage to wattAvgAdder
+  wattAvgAdder += voltage * amps;  // add instantaneous wattage to wattAvgAdder
   if (wattAvgIndex++ >= WATTAVGCOUNT) {
     wattAvg = wattAvgAdder / WATTAVGCOUNT; // set wattAvg to the average value
     wattAvgAdder = 0; // start adder over
@@ -232,6 +233,9 @@ void loop() {
     Serial.print("w"); // this character prepares the sign to recieve wattage number
     Serial.println(wattAvg);  // print the averaged wattage
   }  // this is how we made wattAvg
+
+  wattHours += wattAvg * ((time - lastWattHours)/3600000);  // milliseconds to hours conversion
+  lastWattHours = time;
 
   updateDisplay();  // update the ht1632c display
   setpwmvalue();
@@ -350,39 +354,31 @@ void updateDisplay() {
   if(time - timeDisplay > DISPLAY_INTERVAL_MS){
     timeDisplay = time;
     displayCount += 1; //increment displayCount counter
-    if (displayCount > resetInterval) {
+    if (displayCount > RESETINTERVAL) {
       displayCount = 0;
       ht1632_initialize();
     }
-    printDisplay();
+    printDisplay(); // print stuff to serial port about everything
     readCount = 0;
   }
 
-  // Adding HT1632 code: 
-
   char* label;
-  char buf[]="    ";
   if( time % (DISPLAYRATE * 2) > DISPLAYRATE ) {  // display wattage
-    if (displaymode != 1) wattage = voltage * Amps;  // only calculate wattage once per display update
+    if (displaymode != 1) {
+//      buf[]="    ";
+      sprintf(buf, "%4d", (int) wattAvg);;  // only calculate wattage once per display update
+    }
     displaymode = 1;
     label = "WATT";
-    sprintf(buf, "%4d", (int) wattage);
   } 
   else {  // display WATT HOURS
-//    if (displaymode != 2) wattage = voltage * Amps + minusRailVoltage * Amps; //Assuming - rail amps = + rail amps. 
-    label = "W*H ";
+    if (displaymode != 2) {
+//      buf[]="    ";
+      sprintf(buf, "%4d", (int) (wattHours));
+    }
+    label = "W.H. ";
     displaymode = 2;
-    sprintf(buf, "%4d", (int) (wattAvg / WATTAVGCOUNT));
   } 
-
-  /*  else {  // display system voltage
-   // only calculate wattage once per display update
-   //if (displaymode != 2) wattage = voltage * Amps + minusRailVoltage * Amps; //Assuming - rail amps = + rail amps. 
-   label = "VOLT";
-   displaymode = 3;
-   sprintf(buf, "%4d",  voltage);}*/
-
-
 
   //sprintf(buf, "%4.1f", voltage);
   ht1632_draw_strings( label, buf );
@@ -424,11 +420,8 @@ void setpwmvalue()
 void getCurrents(){
 
   //first two lines are for AC amps 
-  AmpsRaw = analogRead(AmpsPin);
-  Amps = adc2amps(AmpsRaw);  // constant multiplier needed
-
-  AmpsRaw = analogRead(AmpsPin);
-  Amps = adc2amps(AmpsRaw); // constant multiplier needed.
+  ampsRaw = analogRead(ampsPin);
+  amps = adc2amps(ampsRaw);  // constant multiplier needed
 }
 
 void getVoltages(){
@@ -481,23 +474,29 @@ float adc2amps(float adc){
 void printDisplay(){
   Serial.print(" volts: ");
   Serial.print(voltage);
+  Serial.print(" (");
+  Serial.print(analogRead(voltPin));
   if (Hysteresis) Serial.print(" PROTECTED ");
-  Serial.print(", Amps: ");
-  Serial.print(Amps);
+  Serial.print("), amps: ");
+  Serial.print(amps);
+  Serial.print(" (");
+  Serial.print(analogRead(ampsPin));
   //  Serial.print(", pwm value: ");
   //  Serial.print(pwmValue);
-  Serial.print(", Levels ");
+  Serial.print("), Levels ");
   for(i = 0; i < numLevels; i++) {
     Serial.print(i);
-    Serial.print(": ");
+    Serial.print(":");
     Serial.print(desiredState[i]);
-    Serial.print(", ");
+    Serial.print(",");
   }
 
   Serial.println();
 
-  Serial.print("Wattage is ");
-  Serial.println(voltage * Amps);
+  Serial.print("WattAvg is ");
+  Serial.print(wattAvg);
+  Serial.print("   Wattage is ");
+  Serial.println(voltage * amps);
 
 
   //  
@@ -509,7 +508,7 @@ void printDisplay(){
   //    Serial.print(desiredState[i]);
   //    Serial.print(", ");
   //  }
-  Serial.println();
+//  Serial.println();
 
 }
 
