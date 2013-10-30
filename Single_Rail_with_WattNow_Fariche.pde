@@ -55,42 +55,32 @@ int levelType[numLevels] = {
 
 // Arduino pins to be used as inputs to voltage sensor. This shows where to connect the wires! 
 const int voltPin = A0; // Voltage Sensor Input
-const int ACAmpsPin = A2; // AC power and all + rail DC devices. 
-const int plusRailAmpsPin = A1; // Plus rail of JBLs only. 
+const int AmpsPin = A2; // AC power and all + rail DC devices. 
 const int relayPin=8;
-const int minusRelayPin=2;
 const float voltcoeff = 13.25;  // larger numer interprets as lower voltage 
 const float ampcoeff = 7.4; //One direct calculation has this at 5.8. Tune. 
 
 //MAXIMUM VOLTAGE TO GIVE LEDS
 //const float maxVoltLEDs = 24 -- always run LEDs in 24V series configuration.
 const float maxVoltLEDs = 21.0; //LED
-const float maxVoltPlusRail = 27.4;
-const float maxVoltMinusRail = 25;
+const float maxVolt = 27.4;
 
 //Hysteresis variables
-const float minusRailComeBackInVoltage = 22.5;
-const float plusRailComeBackInVoltage = 26;
-const float plusRailComeBackInVoltagetwelveVoltMode = 13.7;
-int plusRailHysteresis=0;
-int minusRailHysteresis=0;
+const float ComeBackInVoltage = 26;
+const float ComeBackInVoltagetwelveVoltMode = 13.7;
+int Hysteresis=0;
 
 // vars to store temp values
 int adcvalue = 0;
 
 //Voltage related variables. 
 float voltage = 0;
-float minusRailVoltage=0;
-float startupMinusVoltage=0;  // inital read of minus rail, to see if minus is being pedaled at all
 
 //Current related variables
-float plusRailAmps=0;
-float ACAmps=0; 
-int plusRailAmpsRaw;
-int ACAmpsRaw;
+float Amps=0;
+int AmpsRaw;
 
-float ACWatts;
-float plusRailWatts;
+float Watts;
 float wattage;
 // on/off state of each level (for use in status output)
 int state[numLevels];
@@ -214,9 +204,7 @@ void setup() {
   Serial.println(versionStr);
 
   pinMode(voltPin,INPUT);
-  pinMode(minusVoltPin, INPUT);
   pinMode(relayPin, OUTPUT);
-  pinMode(minusRelayPin, OUTPUT);
 
   // init LED pins
   for(i = 0; i < numLevels; i++) {
@@ -231,9 +219,7 @@ void setup() {
   pinMode(10,OUTPUT);
   pinMode(11,OUTPUT);
 
-  digitalWrite(minusRelayPin, HIGH);  // MINUS RELAY IS WIRED FOR NORMALLY-OPEN !!!
   getVoltages();
-   startupMinusVoltage = minusRailVoltage;  // we don't enable minusAlert unless minus rail gets pedaled up from the voltage it started at
 
 }
 
@@ -242,32 +228,18 @@ int senseLevel = -1;
 
 void loop() {
 
-  //   digitalWrite(minusRelayPin, LOW);
-  //   Serial.println("Trying to protect.");
-  //  delay(2000);
-  //   digitalWrite(minusRelayPin, HIGH);
-  //   Serial.println("Trying to connect.");
-  //delay(2000);
-
   getVoltages();
-    if (minusAlertEnable == false) // if it hasn't been enabled yet
-    if (minusRailVoltage >= (startupMinusVoltage + 1.0)) {
-      minusAlertEnable = true;  // minus is being pedaled at least 1 volt above startup point
-      Serial.println("Minus rail rose by at least 1.0 volt so Minus Alert has been enabled (minusAlertEnable = true)");
-    }
   getCurrents();
-  wattAvg += voltage * ACAmps + voltage * plusRailAmps + minusRailVoltage * plusRailAmps;  // add total wattage to wattAvg
+  wattAvg += voltage * Amps;  // add total wattage to wattAvg
   if (wattAvgIndex++ >= wattAvgCount) {
     Serial.print("w"); // this character prepares the sign to recieve wattage number
     Serial.println(wattAvg / wattAvgCount);  // print the wattage
     wattAvg = 0; // start the averaging over
     wattAvgIndex = 0; // start the averaging over
   }
-  
+
   setpwmvalue();
   readCount++;
-
-
   //First deal with the blink  
 
   time = millis();
@@ -300,33 +272,16 @@ void loop() {
   }  
 
   //protect the ultracapacitors if needed
-  if (voltage > maxVoltPlusRail){
+  if (voltage > maxVolt){
     digitalWrite(relayPin, HIGH); 
-    plusRailHysteresis=1;
-  }
-  
- if (minusRailVoltage < minusAlertVoltage) {
-    if (minusAlertEnable == true) minusAlert = true;
-  } else minusAlert = false;  // minusAlert triggers blinking lights and text override
-  
- 
- if (minusRailVoltage > maxVoltMinusRail){
-    digitalWrite(minusRelayPin, LOW); // MINUS RELAY IS WIRED FOR NORMALLY-OPEN !!!
-    minusRailHysteresis=1;
-
+    Hysteresis=1;
   }
 
 
-  if (plusRailHysteresis==1 && voltage < plusRailComeBackInVoltage){
+  if (Hysteresis==1 && voltage < ComeBackInVoltage){
     digitalWrite(relayPin, LOW);
-    plusRailHysteresis=0;
+    Hysteresis=0;
   } 
-
-  if (minusRailHysteresis==1 && minusRailVoltage < minusRailComeBackInVoltage){
-    digitalWrite(minusRelayPin, HIGH);  // MINUS RELAY IS WIRED FOR NORMALLY-OPEN !!!
-    minusRailHysteresis=0;
-  }
-  // } 
 
   //Set the desired lighting states. 
 
@@ -346,7 +301,6 @@ void loop() {
         levelMode=2;
       } 
       else desiredState[i]=0;
-      if (minusAlert == true) desiredState[i] = 3;  // make all lights blink if minusAlert is true, get attention to text display
     }
   }
 
@@ -400,21 +354,6 @@ void loop() {
     } 
   } //end for
 
-  //Now show the - Team how hard to pedal. 
-
-  //    if (minusRailVoltage > 19){
-  //       analogWrite(11, pwmValue);
-  //       analogWrite(10, LOW);
-  //       Serial.println ("Turning - rail greens on"); 
-  //    } 
-
-  //    if (minusRailVoltage <= 19){
-  //       analogWrite(10, pwmValue);
-  //      analogWrite(11, LOW); 
-  //       Serial.println ("Turning - rail reds on");       
-  //    }    
-
-
   if(time - timeDisplay > DISPLAY_INTERVAL_MS){
     timeDisplay = time;
     displayCount += 1; //increment displayCount counter
@@ -429,41 +368,35 @@ void loop() {
   // Adding HT1632 code: 
 
   char* label;
-      char buf[]="    ";
-  //if( time % 4000 > 2000 ) {  // display total wattage
+  char buf[]="    ";
+  if( time % 4000 > 2000 ) {  // display wattage
     // only calculate wattage once per display update
-    if (displaymode != 1) wattage = voltage * ACAmps + voltage * plusRailAmps + minusRailVoltage * plusRailAmps; //Assuming - rail amps = + rail amps. 
-    label = "VOLT";
+    if (displaymode != 1) wattage = voltage * Amps;
+    label = "WATT";
     displaymode = 1;
 
-  sprintf(buf, "%4d", (int) voltage);
-  //} 
- /* else {  // display jbl wattage
+    sprintf(buf, "%4d", (int) voltage);
+  } 
+  else {  // display WATT HOURS
     // only calculate wattage once per display update
-    if (displaymode != 2) wattage = voltage * plusRailAmps + minusRailVoltage * plusRailAmps; //Assuming - rail amps = + rail amps. 
-    label = "VOLT";
+//    if (displaymode != 2) wattage = voltage * Amps + minusRailVoltage * Amps; //Assuming - rail amps = + rail amps. 
+    label = "W*H ";
     displaymode = 2;
 
-  sprintf(buf, "%4d", (int) (wattAvg / wattAvgCount));
-  } */
-
-/*  else {  // display system voltage
-    // only calculate wattage once per display update
-    //if (displaymode != 2) wattage = voltage * plusRailAmps + minusRailVoltage * plusRailAmps; //Assuming - rail amps = + rail amps. 
-    label = "VOLT";
-    displaymode = 3;
-   sprintf(buf, "%4d",  voltage);}*/
-  
-
-  
-  //sprintf(buf, "%4.1f", voltage);
-  if (minusAlert == true) {
-    ht1632_draw_strings(minusAlert1,minusAlert2);
+    sprintf(buf, "%4d", (int) (wattAvg / wattAvgCount));
   } 
-  else
-  {
-    ht1632_draw_strings( label, buf );
-  }
+
+  /*  else {  // display system voltage
+   // only calculate wattage once per display update
+   //if (displaymode != 2) wattage = voltage * Amps + minusRailVoltage * Amps; //Assuming - rail amps = + rail amps. 
+   label = "VOLT";
+   displaymode = 3;
+   sprintf(buf, "%4d",  voltage);}*/
+
+
+
+  //sprintf(buf, "%4.1f", voltage);
+  ht1632_draw_strings( label, buf );
 
   delay(200);
 
@@ -505,48 +438,19 @@ void setpwmvalue()
 void getCurrents(){
 
   //first two lines are for AC amps 
-  ACAmpsRaw = analogRead(ACAmpsPin);
-  //Serial.print("AC Amps Raw: ");
-  //Serial.println(ACAmpsRaw);
-  // adcvalue = analogRead(ACAmpsPin);
-  //  ACAmps = average(adc2amps(adcvalue), ACAmps);
-  ACAmps = adc2amps(ACAmpsRaw);  // constant multiplier needed
+  AmpsRaw = analogRead(AmpsPin);
+  Amps = adc2amps(AmpsRaw);  // constant multiplier needed
 
-  //next two lines are for Plus Rail amps 
-  plusRailAmpsRaw = analogRead(plusRailAmpsPin);
-  //  Serial.print("Plus Rail Amps Raw: ");
-  //Serial.println(plusRailAmpsRaw);
-  // plusRailAmps = average(adc2amps(adcvalue), plusRailAmps); //Mark we might want to average this after all but commenting it out to 
-  //  et program up and running
-  //  minusRailVoltage = average(adc2volts(adcvalue), minusRailVoltage) - 5;
-  plusRailAmps = adc2amps(plusRailAmpsRaw); // constant multiplier needed.
+  AmpsRaw = analogRead(AmpsPin);
+  Amps = adc2amps(AmpsRaw); // constant multiplier needed.
 }
 
 void getVoltages(){
 
-  //first two lines are for + rail
   adcvalue = analogRead(voltPin);
   voltage = average(adc2volts(adcvalue), voltage); //Felt slow so I am putting in the line below with no averaging
- // voltage = adc2volts(adcvalue);
-  // Here down is to measure - rail
-  adcvalue = 1023 - analogRead(minusVoltPin) ;
-
-  minusRailVoltage = adc2volts(adcvalue) - 5;
-
-  //  minusRailVoltage = average(adc2volts(adcvalue), minusRailVoltage) - 5;
 
 }
-
-void protectUltracap(int whichRail){
-
-  // Turn OFF the relay to protect either the minus or the plus rail 
-
-}
-
-void restoreUltracapAfterHysteresis(){
-  // Turn ON the relay for normal operation
-}
-
 float average(float val, float avg){
   if(avg == 0)
     avg = val;
@@ -589,14 +493,11 @@ float adc2amps(float adc){
 
 
 void printDisplay(){
-  Serial.print("plusrail volts: ");
+  Serial.print(" volts: ");
   Serial.print(voltage);
-  if (plusRailHysteresis) Serial.print(" PROTECTED ");
-  Serial.print(", AC Amps: ");
-  Serial.print(ACAmps);
-  Serial.print(", Minus volts: ");
-  Serial.print(minusRailVoltage);
-  if (minusRailHysteresis) Serial.print(" PROTECTED ");
+  if (Hysteresis) Serial.print(" PROTECTED ");
+  Serial.print(", Amps: ");
+  Serial.print(Amps);
   //  Serial.print(", pwm value: ");
   //  Serial.print(pwmValue);
   Serial.print(", Levels ");
@@ -607,12 +508,10 @@ void printDisplay(){
     Serial.print(", ");
   }
 
-  Serial.println("");
+  Serial.println();
 
-  Serial.print("Total wattage is ");
-  Serial.println(voltage * ACAmps + voltage * plusRailAmps + minusRailVoltage * plusRailAmps);
-  Serial.print("JBL wattage is ");
-  Serial.println(voltage * plusRailAmps + minusRailVoltage * plusRailAmps);
+  Serial.print("Wattage is ");
+  Serial.println(voltage * Amps);
 
 
   //  
@@ -1008,6 +907,7 @@ void ht1632_draw_strings( char* STRING1, char* STRING2 )
     }
   }
 }
+
 
 
 
