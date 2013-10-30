@@ -23,6 +23,13 @@ const char versionStr[] = "Pedal Power Utility Box ver. 2.1x . Single_Rail_with_
 #include "ht1632c.h"
 #include "font1.h"
 
+//this new pinout corresponds to the first two-team maker-faire arbduino setup
+//         arduino pin number v       display pin # v
+static const byte ht1632_cs = 7;    // Chip Select (pin 1)
+static const byte ht1632_clk = 4;  // Clk pin (pin 2)
+static const byte ht1632_wrclk = 12; // Write clock pin (pin 5)
+static const byte ht1632_data = 13;  // Data pin (pin 7)
+
 #define DISPLAYRATE 2000 // how many milliseconds to show each text display before switching
 
 float wattAvg,wattAvgAdder = 0;  // used for averaging wattage for wattnow sign
@@ -57,19 +64,18 @@ int levelType[numLevels] = {
 
 // Arduino pins to be used as inputs to voltage sensor. This shows where to connect the wires! 
 const int voltPin = A0; // Voltage Sensor Input
-const int AmpsPin = A2; // AC power and all + rail DC devices. 
-const int relayPin=8;
+const int AmpsPin = A3; // AC power and all DC devices. 
+const int relayPin=2;
 const float voltcoeff = 13.25;  // larger numer interprets as lower voltage 
 const float ampcoeff = 7.4; //One direct calculation has this at 5.8. Tune. 
 
 //MAXIMUM VOLTAGE TO GIVE LEDS
 //const float maxVoltLEDs = 24 -- always run LEDs in 24V series configuration.
 const float maxVoltLEDs = 21.0; //LED
-const float maxVolt = 27.4;
+const float maxVolt = 27.2;
 
 //Hysteresis variables
 const float ComeBackInVoltage = 26;
-const float ComeBackInVoltagetwelveVoltMode = 13.7;
 int Hysteresis=0;
 
 // vars to store temp values
@@ -157,11 +163,6 @@ int y = 0;
 /*
  * Set these constants to the values of the pins connected to the SureElectronics Module
  */
-//this new pinout corresponds to the first two-team maker-faire arbduino setup
-static const byte ht1632_cs = 7;    // Chip Select (pin 1)
-static const byte ht1632_clk = 4;  // Clk pin (pin 2)
-static const byte ht1632_wrclk = 12; // Write clock pin (pin 5)
-static const byte ht1632_data = 13;  // Data pin (pin 7)
 // The should also be a common GND (pins .
 // The module with all LEDs like draws about 200mA,
 //  which makes it PROBABLY powerable via Arduino +5V
