@@ -74,7 +74,7 @@ const int relayPin=2;
 
 //MAXIMUM VOLTAGE TO GIVE LEDS
 //const float maxVoltLEDs = 24 -- always run LEDs in 24V series configuration.
-const float maxVoltLEDs = 21.0; //LED
+const float maxVoltLEDs = 13.0; //LED
 const float maxVolt = 27.2;
 
 //Hysteresis variables
@@ -436,14 +436,15 @@ void printDisplay(){
   Serial.print(amps);
   Serial.print(" (");
   Serial.print(analogRead(ampsPin));
-  //  Serial.print(", pwm value: ");
-  //  Serial.print(pwmValue);
   Serial.print("), WattHours: ");
   Serial.print(wattHours);
   Serial.print(", WattAvg: ");
   Serial.print(wattAvg);
 //  Serial.print(", Wattage: ");
 //  Serial.print(voltage * amps);
+  Serial.print(", pwm value: ");
+  Serial.print(pwmValue);
+
   Serial.print(", Levels ");
   for(i = 0; i < numLevels; i++) {
     Serial.print(i);
