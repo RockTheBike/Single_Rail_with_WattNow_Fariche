@@ -230,8 +230,6 @@ void loop() {
     wattAvg = wattAvgAdder / WATTAVGCOUNT; // set wattAvg to the average value
     wattAvgAdder = 0; // start adder over
     wattAvgIndex = 0; // start the averaging over
-//    Serial.print("w"); // this character prepares the sign to recieve wattage number
-//    Serial.println(wattAvg);  // print the averaged wattage
   }  // this is how we made wattAvg
 
   wattHours += wattAvg * ((float) (time - lastWattHours)/3600000);  // milliseconds to hours conversion
@@ -290,14 +288,21 @@ void loop() {
   } 
   else {  // set lights programmatically with for() loop
 
-    for(i = 0; i < numLevels; i++) {
+    for(i = 0; i < numLevels; i++) {  // what to do if voltage points are met
 
       if(voltage >= levelVolt[i]){
         senseLevel = i;
-        desiredState[i]=2;
+        if (i < numPins) {
+          desiredState[i]=2;
+        }
+        else {
+          desiredState[numPins-1] = 3; // set top color to blink
+        }
         levelMode=2;
       } 
-      else desiredState[i]=0;
+      else {
+        if (i < numPins) desiredState[i]=0;
+      }
     }
   }
 
@@ -346,7 +351,7 @@ void loop() {
 }
 
 void updateDisplay() {
-  
+
   if(time - timeDisplay > DISPLAY_INTERVAL_MS){
     timeDisplay = time;
     displayCount += 1; //increment displayCount counter
@@ -361,15 +366,13 @@ void updateDisplay() {
   char* label;
   if( time % (DISPLAYRATE * 2) > DISPLAYRATE ) {  // display wattage
     if (displaymode != 1) {
-//      buf[]="    ";
-      sprintf(buf, "%4d", (int) wattAvg);;  // only calculate wattage once per display update
+      sprintf(buf, "%4d", (int) wattAvg);  // only calculate wattage once per display update
     }
     displaymode = 1;
     label = "WATT";
   } 
   else {  // display WATT HOURS
     if (displaymode != 2) {
-//      buf[]="    ";
       sprintf(buf, "%4d", (int) (wattHours));
     }
     label = "W.H. ";
@@ -440,8 +443,8 @@ void printDisplay(){
   Serial.print(wattHours);
   Serial.print(", WattAvg: ");
   Serial.print(wattAvg);
-//  Serial.print(", Wattage: ");
-//  Serial.print(voltage * amps);
+  //  Serial.print(", Wattage: ");
+  //  Serial.print(voltage * amps);
   Serial.print(", pwm value: ");
   Serial.print(pwmValue);
 
@@ -464,7 +467,7 @@ void printDisplay(){
   //    Serial.print(desiredState[i]);
   //    Serial.print(", ");
   //  }
-//  Serial.println();
+  //  Serial.println();
 
 }
 
@@ -848,6 +851,7 @@ void ht1632_draw_strings( char* STRING1, char* STRING2 )
     }
   }
 }
+
 
 
 
