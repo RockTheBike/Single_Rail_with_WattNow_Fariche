@@ -74,7 +74,7 @@ const int relayPin=2;
 
 //MAXIMUM VOLTAGE TO GIVE LEDS
 //const float maxVoltLEDs = 24 -- always run LEDs in 24V series configuration.
-const float maxVoltLEDs = 13.0; //LED
+const float maxVoltLEDs = 10.0; //LED
 const float maxVolt = 27.4;
 
 //Hysteresis variables
@@ -291,6 +291,7 @@ void loop() {
 
       if(voltage >= levelVolt[i]){
         senseLevel = i;
+        if (i > 0) desiredState[0] = 0; // if second level, turn off first (red) lights
         if (i < numPins) {  // if its an actual LED level
           desiredState[i]=2; // turn lights solid on
         }
