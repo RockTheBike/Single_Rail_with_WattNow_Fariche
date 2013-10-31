@@ -49,10 +49,12 @@ const int numPins = 4; // Number of active Arduino Pins for + rail team.
 int pin[numPins] = {
   3, 5, 6, 9}; 
 
-#define numLevels 5
+#define numLevels numPins + 2
 // voltages at which to turn on each level
+// voltage above the second to last level makes the last LEDs fastblink
+// voltage above the last level makes ALL the LEDs fastblink
 float levelVolt[numLevels] = {
-  22.0, 23.5, 24.8, 26.6, 27.0};
+  22.0, 23.5, 24.8, 26.6, 27.0, 28.0};
 
 // voltages at which to turn on each level
 // float levelVolt[numLevels] = {21, 24.0, 27.0};
@@ -73,7 +75,7 @@ const int relayPin=2;
 //MAXIMUM VOLTAGE TO GIVE LEDS
 //const float maxVoltLEDs = 24 -- always run LEDs in 24V series configuration.
 const float maxVoltLEDs = 13.0; //LED
-const float maxVolt = 27.2;
+const float maxVolt = 27.4;
 
 //Hysteresis variables
 const float ComeBackInVoltage = 26;
@@ -202,7 +204,7 @@ void setup() {
   pinMode(relayPin, OUTPUT);
 
   // init LED pins
-  for(i = 0; i < numLevels; i++) {
+  for(i = 0; i < numPins; i++) {
     pinMode(pin[i],OUTPUT);
     if(levelType[i] == pwm)
       analogWrite(pin[i],0);
@@ -294,6 +296,9 @@ void loop() {
         }
         else { // otherwise it's the overvoltage level so
           desiredState[numPins-1] = 3; // set top LEDs to fastblink
+          if (i > numPins) { // relays must have failed shut!!!  freak out!
+            for (int ohshit = 0; ohshit < numPins; ohshit++) desiredState[ohshit] = 3;
+          } // we just had to set ALL LEDs to fastblink
         }
       } 
       else {
