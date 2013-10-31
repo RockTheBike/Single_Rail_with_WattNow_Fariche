@@ -68,9 +68,9 @@ int levelType[numLevels] = {
 const int voltPin = A0; // Voltage Sensor Input
 const int ampsPin = A3; // AC power and all DC devices. 
 const int relayPin=2;
-#define VOLTCOEFF 13.2186  // 315 / 23.83v
-#define AMPCOEFF 7.4 // MEASURE AND CALIBRATE THIS
-#define AMPOFFSET 514 // when current sensor is at 0 amps this is the ADC value
+#define VOLTCOEFF 13.1944  // 304 / 23.04v
+#define AMPCOEFF 8.0682 // 583 - 512 = 71; 71 / 8.8 amps = 8.0682
+#define AMPOFFSET 512 // when current sensor is at 0 amps this is the ADC value
 
 //MAXIMUM VOLTAGE TO GIVE LEDS
 //const float maxVoltLEDs = 24 -- always run LEDs in 24V series configuration.
@@ -212,7 +212,7 @@ void setup() {
     else if(levelType[i] == onoff)
       digitalWrite(pin[i],0);
   }
-
+  
   getVoltages();
 
 }
@@ -346,7 +346,7 @@ void loop() {
     } 
   } //end for
 
-  delay(100);
+  delay(10);
 }
 
 void updateDisplay() {
@@ -421,7 +421,7 @@ void getVoltages(){
 
   voltage = average((analogRead(voltPin) / VOLTCOEFF), voltage); //Felt slow so I am putting in the line below with no averaging
 
-  amps = (analogRead(ampsPin) - AMPOFFSET) / AMPCOEFF;
+  amps = (float) ((analogRead(ampsPin) - AMPOFFSET) / AMPCOEFF);
 }
 
 float average(float val, float avg){
