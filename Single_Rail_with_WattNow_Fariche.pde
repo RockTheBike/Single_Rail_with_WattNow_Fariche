@@ -54,8 +54,6 @@ int pin[numPins] = {
 float levelVolt[numLevels] = {
   22.0, 23.5, 24.8, 26.6, 27.0};
 
-int levelMode=0; // 0 = off, 1 = blink, 2 = steady
-
 // voltages at which to turn on each level
 // float levelVolt[numLevels] = {21, 24.0, 27.0};
 
@@ -94,7 +92,6 @@ int ampsRaw;
 float Watts;
 float wattage;
 // on/off state of each level (for use in status output)
-int state[numLevels];
 int desiredState[numPins];
 
 #define AVG_CYCLES 7 // average measured voltage over this many samples
@@ -284,7 +281,7 @@ void loop() {
   senseLevel = -1;
   if (voltage <=levelVolt[0]){  // voltage is below minimum
     senseLevel=0;
-    desiredState[0]=1; // set first lights to mode 1
+    desiredState[0]=1; // set first lights to slowblink
   } 
   else {  // set lights programmatically with for() loop
 
@@ -292,23 +289,22 @@ void loop() {
 
       if(voltage >= levelVolt[i]){
         senseLevel = i;
-        if (i < numPins) {
-          desiredState[i]=2;
+        if (i < numPins) {  // if its an actual LED level
+          desiredState[i]=2; // turn lights solid on
         }
-        else {
-          desiredState[numPins-1] = 3; // set top color to blink
+        else { // otherwise it's the overvoltage level so
+          desiredState[numPins-1] = 3; // set top LEDs to fastblink
         }
-        levelMode=2;
       } 
       else {
-        if (i < numPins) desiredState[i]=0;
+        if (i < numPins) desiredState[i]=0;  // turn the level off
       }
     }
   }
-
-  if (senseLevel == numPins+1){
-    desiredState[numPins] = 3; // workaround to blink white lights
-  }
+//
+//  if (senseLevel == numPins+1){
+//    desiredState[numPins] = 3; // workaround to blink white lights
+//  }
 
   // End setting desired states. 
   // Do the desired states. 
@@ -321,27 +317,21 @@ void loop() {
       if(desiredState[i]==2){
         analogWrite(pin[i], pwmValue);
 
-        state[i] = 2;
       }
       else if (desiredState[i]==0){
         analogWrite(pin[i], 0);
-        state[i] = 0;
       }
       else if (desiredState[i]==1 && blinkState==1){
         analogWrite(pin[i], pwmValue);
-        state[i] = 1;
       }
       else if (desiredState[i]==1 && blinkState==0){
         analogWrite(pin[i], 0);
-        state[i] = 1;
       }
       else if (desiredState[i]==3 && fastBlinkState==1){
         analogWrite(pin[i], pwmValue);
-        state[i] = 1;
       }
       else if (desiredState[i]==3 && fastBlinkState==0){
         analogWrite(pin[i], 0);
-        state[i] = 1; 
 
       }
     } 
@@ -448,8 +438,8 @@ void printDisplay(){
   Serial.print(", pwm value: ");
   Serial.print(pwmValue);
 
-  Serial.print(", Levels ");
-  for(i = 0; i < numLevels; i++) {
+  Serial.print(", LEDLEVEL:MODE ");
+  for(i = 0; i < numPins; i++) {
     Serial.print(i);
     Serial.print(":");
     Serial.print(desiredState[i]);
