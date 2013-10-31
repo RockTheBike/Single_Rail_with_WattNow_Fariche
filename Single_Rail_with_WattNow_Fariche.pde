@@ -129,7 +129,7 @@ unsigned long onTime = 500;
 unsigned long levelTime = 0;
 
 // current display level
-int level = -1;
+//int level = -1;
 
 // var for looping through arrays
 int i = 0;
@@ -212,7 +212,7 @@ void setup() {
     else if(levelType[i] == onoff)
       digitalWrite(pin[i],0);
   }
-  
+
   getVoltages();
 
 }
@@ -226,7 +226,7 @@ void loop() {
   getVoltages();
 
   wattAvgAdder += voltage * amps;  // add instantaneous wattage to wattAvgAdder
-  if (wattAvgIndex++ >= WATTAVGCOUNT) {
+  if (++wattAvgIndex >= WATTAVGCOUNT) {
     wattAvg = wattAvgAdder / WATTAVGCOUNT; // set wattAvg to the average value
     wattAvgAdder = 0; // start adder over
     wattAvgIndex = 0; // start the averaging over
@@ -234,7 +234,7 @@ void loop() {
 //    Serial.println(wattAvg);  // print the averaged wattage
   }  // this is how we made wattAvg
 
-  wattHours += wattAvg * ((time - lastWattHours)/3600000);  // milliseconds to hours conversion
+  wattHours += wattAvg * ((float) (time - lastWattHours)/3600000);  // milliseconds to hours conversion
   lastWattHours = time;
 
   updateDisplay();  // update the ht1632c display
@@ -301,12 +301,8 @@ void loop() {
     }
   }
 
-  level=senseLevel;
-  //    Serial.print("Level: ");
-  //   Serial.println(level);
-  if (level == (numLevels-1)){
-    // Serial.print("LevelMode = 1");
-    desiredState[level] = 3; //workaround
+  if (senseLevel == numPins+1){
+    desiredState[numPins] = 3; // workaround to blink white lights
   }
 
   // End setting desired states. 
@@ -442,7 +438,13 @@ void printDisplay(){
   Serial.print(analogRead(ampsPin));
   //  Serial.print(", pwm value: ");
   //  Serial.print(pwmValue);
-  Serial.print("), Levels ");
+  Serial.print("), WattHours: ");
+  Serial.print(wattHours);
+  Serial.print(", WattAvg: ");
+  Serial.print(wattAvg);
+//  Serial.print(", Wattage: ");
+//  Serial.print(voltage * amps);
+  Serial.print(", Levels ");
   for(i = 0; i < numLevels; i++) {
     Serial.print(i);
     Serial.print(":");
@@ -451,12 +453,6 @@ void printDisplay(){
   }
 
   Serial.println();
-
-  Serial.print("WattAvg is ");
-  Serial.print(wattAvg);
-  Serial.print("   Wattage is ");
-  Serial.println(voltage * amps);
-
 
   //  
   //    Serial.print("Desired State ");
